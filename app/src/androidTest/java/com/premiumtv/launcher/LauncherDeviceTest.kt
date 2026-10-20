@@ -73,6 +73,22 @@ class LauncherDeviceTest {
         }
         assertTrue("App did not appear: " + label, found)
     }
+    private fun waitForFixtureFavorite(scenario: ActivityScenario<MainActivity>) {
+        val deadline = SystemClock.uptimeMillis() + 5_000L
+        var visible = false
+        while (!visible && SystemClock.uptimeMillis() < deadline) {
+            scenario.onActivity { activity ->
+                val items = (activity.findViewById<RecyclerView>(R.id.app_grid).adapter as HomeAdapter).items
+                visible = items.any { it is HomeItem.Tile && it.section == Section.FAVORITES &&
+                    it.app.packageName == "com.premiumtv.fixture" }
+            }
+            if (!visible) SystemClock.sleep(100L)
+        }
+        val saved = Preferences(context).favorites
+        assertTrue("Fixture favorite missing; saved favorites=" + saved, visible)
+        assertTrue("Favorite was rendered but not saved", "com.premiumtv.fixture" in saved)
+    }
+
     private fun focusFixture(scenario: ActivityScenario<MainActivity>) {
         scenario.onActivity { activity ->
             val recycler = activity.findViewById<RecyclerView>(R.id.app_grid)
@@ -113,14 +129,12 @@ class LauncherDeviceTest {
             device.pressMenu()
             assertTrue(device.wait(Until.hasObject(By.text("Add to favorites")), 5_000))
             device.findObject(By.text("Add to favorites")).click()
-            instrumentation.waitForIdleSync()
+            // ListView dispatches a touch selection after its pressed-state delay.
+            // Wait for the observable result before destroying the dialog's Activity.
+            waitForFixtureFavorite(scenario)
             scenario.recreate()
             waitForApp("Noir Test App", scenario)
-            scenario.onActivity { activity ->
-                val items = (activity.findViewById<RecyclerView>(R.id.app_grid).adapter as HomeAdapter).items
-                assertTrue(items.any { it is HomeItem.Tile && it.section == Section.FAVORITES &&
-                    it.app.packageName == "com.premiumtv.fixture" })
-            }
+            waitForFixtureFavorite(scenario)
         }
     }
 

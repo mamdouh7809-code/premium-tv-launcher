@@ -148,7 +148,7 @@ class MainActivity : Activity() {
             button.nextFocusUpId = button.id
             button.onFocusChangeListener = View.OnFocusChangeListener { view, focused ->
                 Ui.animateFocus(view, focused, prefs.animations)
-                if (focused) toolbarIndex = index
+                if (focused) { focusGeneration++; toolbarIndex = index }
             }
             button.setOnKeyListener { _, code, event ->
                 if (code == KeyEvent.KEYCODE_DPAD_DOWN) {
@@ -710,7 +710,7 @@ class MainActivity : Activity() {
         when {
             move != null -> finishMove(false)
             query.isNotBlank() -> { query = ""; selectedKey = null; render() }
-            else -> { grid.scrollToPosition(0); toolbar[0].requestFocus() }
+            else -> { focusGeneration++; grid.scrollToPosition(0); toolbar[0].requestFocus() }
         }
     }
 

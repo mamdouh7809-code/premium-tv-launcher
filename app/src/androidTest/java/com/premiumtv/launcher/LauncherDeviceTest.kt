@@ -2,6 +2,8 @@ package com.premiumtv.launcher
 
 import android.content.Context
 import android.content.Intent
+import android.os.Bundle
+import java.io.File
 import android.view.KeyEvent
 import android.view.View
 import android.widget.TextView
@@ -25,6 +27,8 @@ class LauncherDeviceTest {
     private val device get() = UiDevice.getInstance(instrumentation)
 
     @Before fun cleanSettings() {
+        device.wakeUp()
+        shell("wm dismiss-keyguard")
         context.getSharedPreferences(Preferences.FILE, Context.MODE_PRIVATE).edit().clear()
             .putString("language", "en")
             .putString("favorites", "[]")
@@ -34,8 +38,23 @@ class LauncherDeviceTest {
     private fun shell(command: String): String = device.executeShellCommand(command)
     private fun launch() = ActivityScenario.launch<MainActivity>(
         Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-    private fun waitForApp(label: String) {
-        assertTrue("App did not appear: " + label, device.wait(Until.hasObject(By.desc(label)), 12_000))
+    private fun waitForApp(label: String, scenario: ActivityScenario<MainActivity>) {
+        val found = device.wait(Until.hasObject(By.desc(label)), 12_000)
+        if (!found) {
+            val details = StringBuilder("NOIR UI diagnostic: ")
+            scenario.onActivity { activity ->
+                val recycler = activity.findViewById<RecyclerView>(R.id.app_grid)
+                val items = (recycler.adapter as HomeAdapter).items
+                details.append("grid=").append(recycler.width).append("x").append(recycler.height)
+                details.append(" apps=").append(items.filterIsInstance<HomeItem.Tile>()
+                    .joinToString { it.app.packageName + "=" + it.app.label })
+                details.append(" focus=").append(activity.currentFocus)
+            }
+            instrumentation.sendStatus(0, Bundle().apply { putString("stream", details.toString()) })
+            device.dumpWindowHierarchy(File(context.filesDir, "noir-hierarchy.xml"))
+            device.takeScreenshot(File(context.filesDir, "noir-failure.png"))
+        }
+        assertTrue("App did not appear: " + label, found)
     }
     private fun focusFixture(scenario: ActivityScenario<MainActivity>) {
         scenario.onActivity { activity ->
@@ -59,7 +78,7 @@ class LauncherDeviceTest {
         shell("pm uninstall com.premiumtv.fixture")
         launch().use { scenario ->
             assertTrue(shell("pm install -r /data/local/tmp/noir-fixture.apk").contains("Success"))
-            waitForApp("Noir Test App")
+            waitForApp("Noir Test App", scenario)
             assertTrue(shell("pm uninstall com.premiumtv.fixture").contains("Success"))
             assertTrue(device.wait(Until.gone(By.desc("Noir Test App")), 12_000))
             scenario.onActivity { activity ->
@@ -72,14 +91,14 @@ class LauncherDeviceTest {
     @Test fun remoteMenuFavoritesAndRecreationPersist() {
         assertTrue(shell("pm install -r /data/local/tmp/noir-fixture.apk").contains("Success"))
         launch().use { scenario ->
-            waitForApp("Noir Test App")
+            waitForApp("Noir Test App", scenario)
             focusFixture(scenario)
             device.pressMenu()
             assertTrue(device.wait(Until.hasObject(By.text("Add to favorites")), 5_000))
             device.findObject(By.text("Add to favorites")).click()
             instrumentation.waitForIdleSync()
             scenario.recreate()
-            waitForApp("Noir Test App")
+            waitForApp("Noir Test App", scenario)
             scenario.onActivity { activity ->
                 val items = (activity.findViewById<RecyclerView>(R.id.app_grid).adapter as HomeAdapter).items
                 assertTrue(items.any { it is HomeItem.Tile && it.section == Section.FAVORITES &&
@@ -91,7 +110,7 @@ class LauncherDeviceTest {
     @Test fun remoteArrowsRetainFocusAndBackReturnsToToolbar() {
         assertTrue(shell("pm install -r /data/local/tmp/noir-fixture.apk").contains("Success"))
         launch().use { scenario ->
-            waitForApp("Noir Test App")
+            waitForApp("Noir Test App", scenario)
             focusFixture(scenario)
             listOf(KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_DPAD_DOWN,
                 KeyEvent.KEYCODE_DPAD_LEFT).forEach { instrumentation.sendKeyDownUpSync(it) }
@@ -109,7 +128,7 @@ class LauncherDeviceTest {
         context.getSharedPreferences(Preferences.FILE, Context.MODE_PRIVATE).edit().putString("language", "ar").commit()
         assertTrue(shell("pm install -r /data/local/tmp/noir-fixture.apk").contains("Success"))
         launch().use { scenario ->
-            waitForApp("Noir Test App")
+            waitForApp("Noir Test App", scenario)
             scenario.onActivity { activity ->
                 assertEquals(View.LAYOUT_DIRECTION_RTL, activity.resources.configuration.layoutDirection)
                 activity.findViewById<View>(R.id.search_button).performClick()

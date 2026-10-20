@@ -112,16 +112,29 @@ jobs:
           script: |
             adb shell wm size 1920x1080
             adb shell wm density 240
+            adb shell input keyevent KEYCODE_WAKEUP
+            adb shell wm dismiss-keyguard
+            adb shell settings put system screen_off_timeout 1800000
+            adb shell svc power stayon true
+            adb logcat -c
             adb push test-apks/fixture/build/outputs/apk/debug/fixture-debug.apk /data/local/tmp/noir-fixture.apk
             adb install -r test-apks/app/build/outputs/apk/debug/app-debug.apk
             adb install -r test-apks/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
             adb shell am instrument -w -r com.premiumtv.launcher.test/androidx.test.runner.AndroidJUnitRunner | tee instrumentation.txt
+            adb logcat -d -s AndroidRuntime:E > android-crashes.txt
+            adb exec-out run-as com.premiumtv.launcher cat files/noir-hierarchy.xml > noir-hierarchy.xml || true
+            adb exec-out run-as com.premiumtv.launcher cat files/noir-failure.png > noir-failure.png || true
+            python3 -c "from pathlib import Path; import base64; p=Path('noir-failure.png'); print('NOIR_FAILURE_IMAGE='+base64.b64encode(p.read_bytes()).decode()) if p.is_file() and p.read_bytes().startswith(bytes([137,80,78,71])) else None"
             python3 -c "from pathlib import Path; t=Path('instrumentation.txt').read_text(); assert 'OK (4 tests)' in t and 'FAILURES!!!' not in t, t"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: Android-10-device-test-result
-          path: instrumentation.txt
+          path: |
+            instrumentation.txt
+            android-crashes.txt
+            noir-hierarchy.xml
+            noir-failure.png
           if-no-files-found: ignore
   publish:
     needs: [build, device-tests]

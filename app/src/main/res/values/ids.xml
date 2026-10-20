@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <item name="app_grid" type="id" />
+    <item name="search_button" type="id" />
+    <item name="customize_button" type="id" />
+    <item name="system_button" type="id" />
+    <item name="home_button" type="id" />
+    <item name="selected_title" type="id" />
+    <item name="search_input" type="id" />
+</resources>

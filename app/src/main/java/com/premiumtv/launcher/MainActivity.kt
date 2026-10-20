@@ -49,6 +49,7 @@ class MainActivity : Activity() {
     private var query = ""
     private var selectedKey: String? = null
     private var columns = 5
+    private var compact = false
     private var toolbarIndex = 0
     private var toolbar = emptyList<Button>()
     private var started = false
@@ -102,13 +103,14 @@ class MainActivity : Activity() {
     }
 
     private fun buildUi() {
+        compact = resources.configuration.screenHeightDp < 540
         val frame = FrameLayout(this)
         backgroundView = WallpaperView(this)
         frame.addView(backgroundView, FrameLayout.LayoutParams(-1, -1))
         val page = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             layoutDirection = resources.configuration.layoutDirection
-            setPadding(dp(prefs.margin), dp(18), dp(prefs.margin), dp(13))
+            setPadding(dp(prefs.margin), dp(if (compact) 12 else 18), dp(prefs.margin), dp(if (compact) 8 else 13))
             clipChildren = false
             clipToPadding = false
         }
@@ -126,7 +128,7 @@ class MainActivity : Activity() {
         info.addView(line)
         info.addView(date, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(3) })
         header.addView(info)
-        page.addView(header, LinearLayout.LayoutParams(-1, dp(53)))
+        page.addView(header, LinearLayout.LayoutParams(-1, dp(if (compact) 45 else 53)))
         val navigation = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.START or Gravity.CENTER_VERTICAL
@@ -155,14 +157,16 @@ class MainActivity : Activity() {
                 } else false
             }
         }
-        page.addView(navigation, LinearLayout.LayoutParams(-1, dp(47)))
+        page.addView(navigation, LinearLayout.LayoutParams(-1, dp(if (compact) 43 else 47)))
         val hero = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(7), 0, dp(7), 0)
         }
-        hero.addView(Ui.text(this, getString(R.string.tagline), 11f, Ui.MUTED))
-        title = Ui.text(this, getString(R.string.welcome), 27f, Ui.WHITE, true).apply {
+        hero.addView(Ui.text(this, getString(R.string.tagline), 11f, Ui.MUTED).apply {
+            if (compact) visibility = View.GONE
+        })
+        title = Ui.text(this, getString(R.string.welcome), if (compact) 22f else 27f, Ui.WHITE, true).apply {
             id = R.id.selected_title
             maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.END
@@ -170,8 +174,8 @@ class MainActivity : Activity() {
         hero.addView(title, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(6) })
         summary = Ui.text(this, getString(R.string.loading), 11f, Ui.MUTED)
         hero.addView(summary, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(5) })
-        page.addView(hero, LinearLayout.LayoutParams(-1, dp(91)))
-        adapter = HomeAdapter(prefs, icons, ::selected, ::openTile, ::showAppMenu)
+        page.addView(hero, LinearLayout.LayoutParams(-1, dp(if (compact) 60 else 91)))
+        adapter = HomeAdapter(prefs, icons, ::selected, ::openTile, ::showAppMenu).apply { compact = this@MainActivity.compact }
         layout = GridLayoutManager(this, columns).apply {
             spanSizeLookup = object : GridLayoutManager.SpanSizeLookup() {
                 override fun getSpanSize(position: Int) = if (adapter.items.getOrNull(position) is HomeItem.Tile) 1 else columns
@@ -181,9 +185,9 @@ class MainActivity : Activity() {
             id = R.id.app_grid
             layoutManager = layout
             adapter = this@MainActivity.adapter
-            clipToPadding = false
-            clipChildren = false
-            setPadding(dp(1), dp(1), dp(1), dp(12))
+            clipToPadding = true
+            clipChildren = true
+            setPadding(dp(1), dp(1), dp(1), dp(if (compact) 6 else 12))
             itemAnimator = null
             setItemViewCacheSize(if (prefs.lowMemory) 4 else 8)
             setHasFixedSize(true)
@@ -201,7 +205,7 @@ class MainActivity : Activity() {
             setPadding(dp(7), dp(5), dp(7), 0)
             maxLines = 2
         }
-        page.addView(hint, LinearLayout.LayoutParams(-1, dp(31)))
+        page.addView(hint, LinearLayout.LayoutParams(-1, dp(if (compact) 24 else 31)))
         setContentView(frame)
         adapter.submit(listOf(HomeItem.Message(getString(R.string.loading), "loading")))
         toolbar[toolbarIndex.coerceIn(0, toolbar.lastIndex)].requestFocus()

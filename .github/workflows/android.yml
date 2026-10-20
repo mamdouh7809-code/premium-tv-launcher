@@ -107,8 +107,9 @@ jobs:
           api-level: 29
           arch: x86_64
           target: default
+          profile: tv_1080p
           disable-animations: true
-          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -camera-front none -memory 1536
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -camera-front none -memory 1536 -skin 1920x1080
           script: |
             adb shell wm size 1920x1080
             adb shell wm density 240
@@ -124,6 +125,8 @@ jobs:
             adb logcat -d -s AndroidRuntime:E > android-crashes.txt
             adb exec-out run-as com.premiumtv.launcher cat files/noir-hierarchy.xml > noir-hierarchy.xml || true
             adb exec-out run-as com.premiumtv.launcher cat files/noir-failure.png > noir-failure.png || true
+            adb exec-out run-as com.premiumtv.launcher cat files/noir-preview.png > noir-preview.png || true
+            python3 -c "from pathlib import Path; import base64; p=Path('noir-preview.png'); print('NOIR_PREVIEW_IMAGE='+base64.b64encode(p.read_bytes()).decode()) if p.is_file() and p.read_bytes().startswith(bytes([137,80,78,71])) else None"
             python3 -c "from pathlib import Path; import base64; p=Path('noir-failure.png'); print('NOIR_FAILURE_IMAGE='+base64.b64encode(p.read_bytes()).decode()) if p.is_file() and p.read_bytes().startswith(bytes([137,80,78,71])) else None"
             python3 -c "from pathlib import Path; t=Path('instrumentation.txt').read_text(); assert 'OK (4 tests)' in t and 'FAILURES!!!' not in t, t"
       - uses: actions/upload-artifact@v4
@@ -135,6 +138,7 @@ jobs:
             android-crashes.txt
             noir-hierarchy.xml
             noir-failure.png
+            noir-preview.png
           if-no-files-found: ignore
   publish:
     needs: [build, device-tests]

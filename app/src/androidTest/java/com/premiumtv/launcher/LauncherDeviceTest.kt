@@ -3,6 +3,7 @@ package com.premiumtv.launcher
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.os.SystemClock
 import java.io.File
 import android.view.KeyEvent
 import android.view.View
@@ -39,7 +40,23 @@ class LauncherDeviceTest {
     private fun launch() = ActivityScenario.launch<MainActivity>(
         Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     private fun waitForApp(label: String, scenario: ActivityScenario<MainActivity>) {
-        val found = device.wait(Until.hasObject(By.desc(label)), 12_000)
+        // RecyclerView virtualizes off-screen cards; first discover and scroll to the real card.
+        var discovered = false
+        val deadline = SystemClock.uptimeMillis() + 12_000L
+        while (!discovered && SystemClock.uptimeMillis() < deadline) {
+            scenario.onActivity { activity ->
+                val recycler = activity.findViewById<RecyclerView>(R.id.app_grid)
+                val adapter = recycler.adapter as HomeAdapter
+                val index = adapter.items.indexOfFirst { it is HomeItem.Tile && it.app.label == label }
+                if (index >= 0) {
+                    discovered = true
+                    recycler.scrollToPosition(index)
+                }
+            }
+            if (!discovered) SystemClock.sleep(100L)
+        }
+        instrumentation.waitForIdleSync()
+        val found = discovered && device.wait(Until.hasObject(By.desc(label)), 5_000)
         if (!found) {
             val details = StringBuilder("NOIR UI diagnostic: ")
             scenario.onActivity { activity ->
@@ -121,6 +138,7 @@ class LauncherDeviceTest {
             device.pressBack()
             instrumentation.waitForIdleSync()
             scenario.onActivity { activity -> assertEquals(R.id.search_button, activity.currentFocus?.id) }
+            device.takeScreenshot(File(context.filesDir, "noir-preview.png"))
         }
     }
 

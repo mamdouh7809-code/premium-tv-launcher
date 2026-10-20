@@ -20,6 +20,7 @@ class HomeAdapter(
     var items: List<HomeItem> = emptyList()
         private set
     var columns: Int = 5
+    var compact: Boolean = false
     var tileHeight = 126
     var navigator = FocusNavigator(emptyList(), columns)
         private set
@@ -41,12 +42,12 @@ class HomeAdapter(
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
         val context = parent.context
         if (viewType != 2) {
-            val text = Ui.text(context, "", if (viewType == 0) 18f else 12f,
+            val text = Ui.text(context, "", if (viewType == 0) (if (compact) 16f else 18f) else 12f,
                 if (viewType == 0) Ui.WHITE else Ui.MUTED, viewType == 0)
             text.gravity = Gravity.CENTER_VERTICAL or Gravity.START
             text.setPadding(context.dp(7), context.dp(8), context.dp(7), context.dp(4))
             text.layoutParams = RecyclerView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
-                context.dp(if (viewType == 0) 43 else 52))
+                context.dp(if (compact) (if (viewType == 0) 32 else 34) else (if (viewType == 0) 43 else 52)))
             return TextHolder(text)
         }
         val frame = FrameLayout(context).apply {

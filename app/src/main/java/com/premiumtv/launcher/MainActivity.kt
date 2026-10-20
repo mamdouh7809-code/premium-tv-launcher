@@ -289,12 +289,14 @@ class MainActivity : Activity() {
     }
 
     private fun orderedApps(section: Section): List<AppEntry> {
-        val available = installed.filter { it.packageName !in prefs.hidden }
+        val hiddenKeys = prefs.hidden
+        val favoriteKeys = prefs.favorites
+        val available = installed.filter { it.packageName !in hiddenKeys }
         val byKey = available.associateBy { it.packageName }
         val keys = if (section == Section.ALL) available.map { it.packageName }
-            else prefs.favorites.filter { it in byKey }
+            else favoriteKeys.filter { it in byKey }
         val saved = move?.takeIf { it.section == section }?.keys
-            ?: if (section == Section.ALL) prefs.order else prefs.favorites
+            ?: if (section == Section.ALL) prefs.order else favoriteKeys
         return AppOrder.merge(saved, keys).mapNotNull { byKey[it] }
     }
 
@@ -302,6 +304,7 @@ class MainActivity : Activity() {
         if (!::adapter.isInitialized) return
         val all = orderedApps(Section.ALL)
         val favorites = orderedApps(Section.FAVORITES)
+        val favoriteKeys = prefs.favorites.toHashSet()
         val items = buildList<HomeItem> {
             if (query.isBlank()) {
                 add(HomeItem.Header(getString(R.string.favorites), "favorites_header"))
@@ -309,18 +312,19 @@ class MainActivity : Activity() {
                 favorites.forEach { add(HomeItem.Tile(it, Section.FAVORITES, true)) }
                 add(HomeItem.Header(getString(R.string.all_apps), "all_header"))
                 if (all.isEmpty()) add(HomeItem.Message(getString(R.string.apps_empty), "all_empty"))
-                all.forEach { add(HomeItem.Tile(it, Section.ALL, it.packageName in prefs.favorites)) }
+                all.forEach { add(HomeItem.Tile(it, Section.ALL, it.packageName in favoriteKeys)) }
             } else {
                 add(HomeItem.Header(getString(R.string.search_results), "results_header"))
                 val matching = all.filter { it.label.contains(query, true) || it.packageName.contains(query, true) }
                 if (matching.isEmpty()) add(HomeItem.Message(getString(R.string.no_results), "no_results"))
-                matching.forEach { add(HomeItem.Tile(it, Section.ALL, it.packageName in prefs.favorites)) }
+                matching.forEach { add(HomeItem.Tile(it, Section.ALL, it.packageName in favoriteKeys)) }
             }
         }
         summary.text = if (query.isBlank()) getString(R.string.app_count, all.size, favorites.size)
                        else getString(R.string.search_query, query)
         hint.setText(if (move != null) R.string.move_hint else R.string.remote_hint)
         adapter.submit(items)
+        if (adapter.firstTile() < 0) title.setText(R.string.welcome)
         if (requestFocus) focusGrid(selectedKey)
     }
 
@@ -595,6 +599,7 @@ class MainActivity : Activity() {
     }
 
     private fun importWallpaper(uri: Uri) {
+        val importToken = ++wallpaperGeneration
         toast(R.string.image_loading)
         imageWorker.execute {
             val incoming = File(cacheDir, "wallpaper-import.tmp")
@@ -648,7 +653,7 @@ class MainActivity : Activity() {
                     check(bitmap.compress(Bitmap.CompressFormat.JPEG, 88, stream))
                     atomic.finishWrite(stream)
                 } catch (error: Exception) { atomic.failWrite(stream); throw error }
-                handler.post { if (!isDestroyed) { prefs.wallpaper = "custom"; loadWallpaper() } }
+                handler.post { if (!isDestroyed && importToken == wallpaperGeneration) { prefs.wallpaper = "custom"; loadWallpaper() } }
             } catch (_: Exception) {
                 handler.post { if (!isDestroyed) toast(R.string.wallpaper_error) }
             } catch (_: OutOfMemoryError) {
@@ -662,8 +667,9 @@ class MainActivity : Activity() {
         backgroundView.configure(prefs.wallpaper, prefs.accent)
         if (prefs.wallpaper != "custom") return
         imageWorker.execute {
-            val bitmap = try { BitmapFactory.decodeFile(File(filesDir, "wallpaper.jpg").path) }
-                catch (_: OutOfMemoryError) { null }
+            val bitmap = try {
+                AtomicFile(File(filesDir, "wallpaper.jpg")).openRead().use { BitmapFactory.decodeStream(it) }
+            } catch (_: Exception) { null } catch (_: OutOfMemoryError) { null }
             handler.post {
                 if (!isDestroyed && token == wallpaperGeneration) backgroundView.configure(prefs.wallpaper, prefs.accent, bitmap)
             }

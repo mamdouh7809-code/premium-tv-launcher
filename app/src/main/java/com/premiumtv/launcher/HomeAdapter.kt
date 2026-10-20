@@ -100,6 +100,11 @@ class HomeAdapter(
             is HomeItem.Message -> (holder as TextHolder).text.text = item.text
             is HomeItem.Tile -> {
                 holder as TileHolder
+                val height = holder.itemView.context.dp(tileHeight)
+                if (holder.itemView.layoutParams.height != height) {
+                    holder.itemView.layoutParams.height = height
+                    holder.itemView.requestLayout()
+                }
                 holder.itemView.tag = item
                 holder.itemView.contentDescription = item.app.label
                 holder.title.text = item.app.label
